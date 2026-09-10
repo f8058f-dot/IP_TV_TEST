@@ -40,7 +40,7 @@
 
     <!-- Firebase SDK (Compat) -->
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
 
     <style>
 
@@ -2932,7 +2932,7 @@ body.light-mode #fakeViewers{color:#64748b!important}
         } catch(e) {}
 
 
-// ====================== FIREBASE SETUP ======================
+// ====================== FIREBASE SETUP (Realtime Database) ======================
 const firebaseConfig = {
   apiKey: "AIzaSyBK4bk5e2pA7rBjBly762qsxcEODoiSP70",
   authDomain: "stariptv-f3612.firebaseapp.com",
@@ -2940,7 +2940,8 @@ const firebaseConfig = {
   storageBucket: "stariptv-f3612.firebasestorage.app",
   messagingSenderId: "222546628798",
   appId: "1:222546628798:web:34eb72e0dcbc7d69490eef",
-  measurementId: "G-BD57H5YG3R"
+  measurementId: "G-BD57H5YG3R",
+  databaseURL: "https://stariptv-f3612-default-rtdb.firebaseio.com"
 };
 
 try {
@@ -2948,17 +2949,11 @@ try {
 } catch (e) {
   console.warn("Firebase already initialized or failed:", e);
 }
-const db = firebase.firestore();
 
-// Enable offline persistence
-try {
-  db.enablePersistence({ synchronizeTabs: true }).catch(function(err) {
-    console.log("Firestore persistence:", err.code);
-  });
-} catch (e) {}
-
-// ====================== FIREBASE SAVE / LOAD ======================
+const db = firebase.database();
 window._firebaseReady = true;
+
+// ====================== FIREBASE SAVE / LOAD (Realtime Database) ======================
 
 window.saveLocalData = function() {
   var channelSnapshot = window.allData || {};
@@ -2987,15 +2982,15 @@ window.saveLocalData = function() {
     }
   }
 
-  // Save to Firebase (async, non-blocking)
-  if (window._firebaseReady && typeof db !== 'undefined') {
-    db.collection("startv").doc("channels").set({ data: channelSnapshot, updatedAt: Date.now() }).catch(function(err){
+  // Save to Realtime Database (async)
+  if (window._firebaseReady && db) {
+    db.ref("startv/channels").set(channelSnapshot).catch(function(err){
       console.warn("Firebase channels save error:", err);
     });
-    db.collection("startv").doc("users").set({ data: window.allUsers || {}, updatedAt: Date.now() }).catch(function(err){
+    db.ref("startv/users").set(window.allUsers || {}).catch(function(err){
       console.warn("Firebase users save error:", err);
     });
-    db.collection("startv").doc("operators").set({ data: window.allOperators || {}, updatedAt: Date.now() }).catch(function(err){
+    db.ref("startv/operators").set(window.allOperators || {}).catch(function(err){
       console.warn("Firebase operators save error:", err);
     });
   }
@@ -3006,8 +3001,8 @@ window.saveSettings = function() {
   window.settings._updated_at = Date.now();
   try { localStorage.setItem('startv_local_settings', JSON.stringify(window.settings)); } catch(e) {}
 
-  if (window._firebaseReady && typeof db !== 'undefined') {
-    db.collection("startv").doc("settings").set({ data: window.settings, updatedAt: Date.now() }).catch(function(err){
+  if (window._firebaseReady && db) {
+    db.ref("startv/settings").set(window.settings).catch(function(err){
       console.warn("Firebase settings save error:", err);
     });
   }
@@ -3027,8 +3022,8 @@ window.saveOperators = function() {
     localStorage.setItem('startv_local_operators_updated_at', String(stamp));
   } catch(e) {}
 
-  if (window._firebaseReady && typeof db !== 'undefined') {
-    db.collection("startv").doc("operators").set({ data: window.allOperators || {}, updatedAt: stamp }).catch(function(err){
+  if (window._firebaseReady && db) {
+    db.ref("startv/operators").set(window.allOperators || {}).catch(function(err){
       console.warn("Firebase operators save error:", err);
     });
   }
@@ -3042,13 +3037,13 @@ window.queueFirebaseSave = function() {
   }, 600);
 };
 
-// Load from Firebase first, fallback to localStorage
+// Load from Realtime Database first, fallback to localStorage
 window.loadAllDataFromFirebase = async function() {
   try {
     // Channels
-    var chSnap = await db.collection("startv").doc("channels").get();
-    if (chSnap.exists && chSnap.data().data) {
-      window.allData = chSnap.data().data || {};
+    var chSnap = await db.ref("startv/channels").once("value");
+    if (chSnap.exists()) {
+      window.allData = chSnap.val() || {};
       try { localStorage.setItem('startv_local_channels', JSON.stringify(window.allData)); } catch(e) {}
     } else {
       var localChannels = localStorage.getItem('startv_local_channels');
@@ -3056,9 +3051,9 @@ window.loadAllDataFromFirebase = async function() {
     }
 
     // Users
-    var userSnap = await db.collection("startv").doc("users").get();
-    if (userSnap.exists && userSnap.data().data) {
-      window.allUsers = userSnap.data().data || {};
+    var userSnap = await db.ref("startv/users").once("value");
+    if (userSnap.exists()) {
+      window.allUsers = userSnap.val() || {};
       try { localStorage.setItem('startv_local_users', JSON.stringify(window.allUsers)); } catch(e) {}
     } else {
       var localUsers = localStorage.getItem('startv_local_users');
@@ -3066,9 +3061,9 @@ window.loadAllDataFromFirebase = async function() {
     }
 
     // Operators
-    var opSnap = await db.collection("startv").doc("operators").get();
-    if (opSnap.exists && opSnap.data().data) {
-      window.allOperators = opSnap.data().data || {};
+    var opSnap = await db.ref("startv/operators").once("value");
+    if (opSnap.exists()) {
+      window.allOperators = opSnap.val() || {};
       try { localStorage.setItem('startv_local_operators', JSON.stringify(window.allOperators)); } catch(e) {}
     } else {
       var localOperators = localStorage.getItem('startv_local_operators');
@@ -3076,9 +3071,9 @@ window.loadAllDataFromFirebase = async function() {
     }
 
     // Settings
-    var setSnap = await db.collection("startv").doc("settings").get();
-    if (setSnap.exists && setSnap.data().data) {
-      window.settings = Object.assign({}, window.settings || {}, setSnap.data().data);
+    var setSnap = await db.ref("startv/settings").once("value");
+    if (setSnap.exists()) {
+      window.settings = Object.assign({}, window.settings || {}, setSnap.val() || {});
       try { localStorage.setItem('startv_local_settings', JSON.stringify(window.settings)); } catch(e) {}
     } else {
       var localSettings = localStorage.getItem('startv_local_settings');
@@ -3087,7 +3082,7 @@ window.loadAllDataFromFirebase = async function() {
       }
     }
 
-    console.log("✓ Data loaded from Firebase");
+    console.log("✓ Data loaded from Realtime Database");
     return true;
   } catch (e) {
     console.warn("Firebase load failed, using localStorage:", e);
@@ -3105,7 +3100,6 @@ window.loadAllDataFromFirebase = async function() {
   }
 };
 // ===============================================================
-
 
         async function initApp() { 
             // Load from Firebase first (with localStorage fallback)
