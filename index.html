@@ -2950,8 +2950,9 @@ try {
   console.warn("Firebase already initialized or failed:", e);
 }
 
-const db = firebase.database();
+var db = firebase.database();
 window._firebaseReady = true;
+window.firebaseReady = true;
 
 // ====================== FIREBASE SAVE / LOAD (Realtime Database) ======================
 
