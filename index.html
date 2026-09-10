@@ -12,9 +12,35 @@
 
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
-    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest">
+        function syncCenterPlayButton() {
+            const btn = document.getElementById('centerPlayBtn');
+            const video = document.getElementById('tvPlayer');
+            if (!btn || !video) return;
+            const paused = video.paused;
+            btn.textContent = paused ? '▶' : '⏸';
+            btn.classList.toggle('is-playing', !paused);
+            btn.classList.toggle('is-hidden', !paused);
+            btn.setAttribute('aria-label', paused ? 'Play' : 'Pause');
+            btn.title = paused ? 'Play' : 'Pause';
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const v = document.getElementById('tvPlayer');
+            if (v) {
+                v.addEventListener('play', syncCenterPlayButton);
+                v.addEventListener('pause', syncCenterPlayButton);
+                v.addEventListener('loadedmetadata', syncCenterPlayButton);
+                syncCenterPlayButton();
+            }
+        });
+</script>
     <!-- SheetJS: Excel (.xlsx/.xls) channel import -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+    <!-- Firebase SDK (Compat) -->
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 
     <style>
 
@@ -393,6 +419,54 @@
         }
 
 
+
+        
+        .center-play-btn.is-hidden{
+            opacity:0;
+            visibility:hidden;
+            pointer-events:none;
+            transform:translate(-50%,-50%) scale(.92);
+        }
+
+.center-play-btn{
+            position:absolute;
+            left:50%;
+            top:50%;
+            transform:translate(-50%,-50%);
+            width:72px;
+            height:72px;
+            border:1px solid rgba(255,255,255,.28);
+            border-radius:50%;
+            background:rgba(0,0,0,.58);
+            color:#fff;
+            font-size:30px;
+            line-height:1;
+            cursor:pointer;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            z-index:15;
+            backdrop-filter:blur(8px);
+            -webkit-backdrop-filter:blur(8px);
+            box-shadow:0 8px 28px rgba(0,0,0,.35);
+            transition:transform .18s ease, background .18s ease, opacity .18s ease;
+            opacity:.9;
+        }
+        .center-play-btn:hover{
+            transform:translate(-50%,-50%) scale(1.06);
+            background:rgba(0,122,255,.82);
+            opacity:1;
+        }
+        .center-play-btn:active{
+            transform:translate(-50%,-50%) scale(.96);
+        }
+        .center-play-btn.is-playing{
+            font-size:26px;
+        }
+        @media(max-width:650px){
+            .center-play-btn{width:62px;height:62px;font-size:26px;}
+            .center-play-btn.is-playing{font-size:22px;}
+        }
 
         .player-wrap {
 
@@ -1241,8 +1315,7 @@
         /* Controls sit BELOW video — never cover the stream */
         .player-overlay-ui {
             display: none !important;
-        }
-        .player-controls-bar {
+        }.player-controls-bar {
             display: flex;
             flex-wrap: wrap;
             gap: 8px;
@@ -1901,6 +1974,7 @@ body.light-mode #fakeViewers{color:#64748b!important}
         <div class="player-box">
             <div class="player-wrap live-ui" id="playerWrap">
                 <video id="tvPlayer" autoplay playsinline controlslist="nodownload noplaybackrate noremoteplayback" disablepictureinpicture></video>
+                <button type="button" class="center-play-btn" id="centerPlayBtn" onclick="togglePlayPause()" title="Play / Pause" aria-label="Play / Pause">▶</button>
                 <div class="viewer-overlay" id="viewerOverlay" aria-hidden="true">
                     <div class="viewer-pill"><span class="viewer-dot"></span><span id="viewerOverlayLeft">0 Viewers</span></div>
                 </div>
@@ -1918,16 +1992,6 @@ body.light-mode #fakeViewers{color:#64748b!important}
                     <button class="p-btn" onclick="verifyParentalPin()">Unlock</button>
                     <button class="p-btn" style="background:rgba(239,68,68,.2);border-color:var(--red);color:var(--red)" onclick="cancelParentalUnlock()">Cancel</button>
                 </div>
-            </div>
-
-            <div class="player-controls-bar" id="liveControlsBar">
-                <button type="button" class="p-btn" onclick="zapChannel(-1)" title="Previous Channel">⏮ Previous</button>
-                <button type="button" class="p-btn" onclick="togglePlayPause()" title="Play / Pause" id="playPauseBtn">⏯ Play</button>
-                <button type="button" class="p-btn" onclick="zapChannel(1)" title="Next Channel">Next ⏭</button>
-                <span class="live-badge-ctrl"><i></i> Live</span>
-                <button type="button" class="p-btn" onclick="toggleMute()" title="Mute" id="muteBtn">🔊 Sound</button>
-                <button type="button" class="p-btn" onclick="toggleFullscreen()" title="Fullscreen">⛶ Fullscreen</button>
-                <button type="button" class="p-btn" onclick="refreshCurrentStream()" title="Reload">↻ Reload</button>
             </div>
             <div class="now-playing">
                 <div>
@@ -2867,50 +2931,224 @@ body.light-mode #fakeViewers{color:#64748b!important}
             }
         } catch(e) {}
 
-        function initApp() { 
-            // Local-only startup from localStorage.
-            try {
-                var localChannels = localStorage.getItem('startv_local_channels');
-                var localUsers = localStorage.getItem('startv_local_users');
-                var localOperators = localStorage.getItem('startv_local_operators');
-                var localSettings = localStorage.getItem('startv_local_settings');
-                // Keep saved channels on this device (persist across refresh)
-                if (localChannels) {
-                    try { window.allData = JSON.parse(localChannels) || {}; } catch(e) { window.allData = {}; }
-                } else {
-                    window.allData = {};
-                }
-                if (localUsers) window.allUsers = JSON.parse(localUsers);
-                if (localOperators) window.allOperators = JSON.parse(localOperators);
-                try {
-                    var savedOpStamp = parseInt(localStorage.getItem('startv_local_operators_updated_at') || '0', 10) || 0;
-                    window._operatorsUpdatedAt = savedOpStamp;
-                    if (!savedOpStamp && localOperators) {
-                        window._operatorsUpdatedAt = Date.now();
-                        localStorage.setItem('startv_local_operators_updated_at', String(window._operatorsUpdatedAt));
-                    }
-                } catch(e) {}
-                if (localSettings) {
-                    window.settings = Object.assign({}, window.settings, JSON.parse(localSettings));
-                    if (!window.settings._updated_at) {
-                        window.settings._updated_at = Date.now();
-                        try { localStorage.setItem('startv_local_settings', JSON.stringify(window.settings)); } catch(e) {}
-                    }
-                }
-                try { window.homeSortMode = localStorage.getItem('startv_home_sort') || 'default'; } catch(e) {}
-                window.usersDataReady = true;
-                applySettings();
-                updateStats();
-                renderCategoriesUI();
-                renderFrontend(); window.updateLiveStatus && window.updateLiveStatus();
-                renderAdminList();
-                renderUserList();
-                renderRecentBar();
-                window.refreshAdminMetrics && window.refreshAdminMetrics();
-                window.restoreAllExtraFeaturesUI && window.restoreAllExtraFeaturesUI();
-            } catch(localErr) { console.warn('Local startup warning:', localErr); }
 
-            // Local-only: persist and unlock customer UI
+// ====================== FIREBASE SETUP ======================
+const firebaseConfig = {
+  apiKey: "AIzaSyBK4bk5e2pA7rBjBly762qsxcEODoiSP70",
+  authDomain: "stariptv-f3612.firebaseapp.com",
+  projectId: "stariptv-f3612",
+  storageBucket: "stariptv-f3612.firebasestorage.app",
+  messagingSenderId: "222546628798",
+  appId: "1:222546628798:web:34eb72e0dcbc7d69490eef",
+  measurementId: "G-BD57H5YG3R"
+};
+
+try {
+  firebase.initializeApp(firebaseConfig);
+} catch (e) {
+  console.warn("Firebase already initialized or failed:", e);
+}
+const db = firebase.firestore();
+
+// Enable offline persistence
+try {
+  db.enablePersistence({ synchronizeTabs: true }).catch(function(err) {
+    console.log("Firestore persistence:", err.code);
+  });
+} catch (e) {}
+
+// ====================== FIREBASE SAVE / LOAD ======================
+window._firebaseReady = true;
+
+window.saveLocalData = function() {
+  var channelSnapshot = window.allData || {};
+  // Always keep localStorage backup
+  try {
+    localStorage.setItem('startv_local_channels', JSON.stringify(channelSnapshot));
+    localStorage.setItem('startv_local_users', JSON.stringify(window.allUsers || {}));
+    localStorage.setItem('startv_local_operators', JSON.stringify(window.allOperators || {}));
+    localStorage.setItem('startv_favorites', JSON.stringify(window.favorites || []));
+    localStorage.setItem('startv_recent', JSON.stringify(window.recentlyPlayed || []));
+  } catch(e) {
+    console.warn('Local save failed:', e);
+    try {
+      var light = {};
+      Object.keys(channelSnapshot).forEach(function(k){
+        var c = channelSnapshot[k] || {};
+        light[k] = Object.assign({}, c);
+        if (light[k].logo && String(light[k].logo).indexOf('data:')===0 && String(light[k].logo).length > 8000) {
+          light[k].logo = '';
+        }
+      });
+      localStorage.setItem('startv_local_channels', JSON.stringify(light));
+      window.showToast && window.showToast('Storage almost full — large logos stripped');
+    } catch(e2) {
+      window.showToast && window.showToast('Device storage full — export backup now');
+    }
+  }
+
+  // Save to Firebase (async, non-blocking)
+  if (window._firebaseReady && typeof db !== 'undefined') {
+    db.collection("startv").doc("channels").set({ data: channelSnapshot, updatedAt: Date.now() }).catch(function(err){
+      console.warn("Firebase channels save error:", err);
+    });
+    db.collection("startv").doc("users").set({ data: window.allUsers || {}, updatedAt: Date.now() }).catch(function(err){
+      console.warn("Firebase users save error:", err);
+    });
+    db.collection("startv").doc("operators").set({ data: window.allOperators || {}, updatedAt: Date.now() }).catch(function(err){
+      console.warn("Firebase operators save error:", err);
+    });
+  }
+};
+
+window.saveSettings = function() {
+  window.settings = window.settings || {};
+  window.settings._updated_at = Date.now();
+  try { localStorage.setItem('startv_local_settings', JSON.stringify(window.settings)); } catch(e) {}
+
+  if (window._firebaseReady && typeof db !== 'undefined') {
+    db.collection("startv").doc("settings").set({ data: window.settings, updatedAt: Date.now() }).catch(function(err){
+      console.warn("Firebase settings save error:", err);
+    });
+  }
+  return Promise.resolve();
+};
+
+window.saveOperators = function() {
+  var stamp = Date.now();
+  window._operatorsUpdatedAt = stamp;
+  Object.keys(window.allOperators || {}).forEach(function(id) {
+    if (window.allOperators[id] && typeof window.allOperators[id] === 'object') {
+      window.allOperators[id].updatedAt = stamp;
+    }
+  });
+  try {
+    localStorage.setItem('startv_local_operators', JSON.stringify(window.allOperators));
+    localStorage.setItem('startv_local_operators_updated_at', String(stamp));
+  } catch(e) {}
+
+  if (window._firebaseReady && typeof db !== 'undefined') {
+    db.collection("startv").doc("operators").set({ data: window.allOperators || {}, updatedAt: stamp }).catch(function(err){
+      console.warn("Firebase operators save error:", err);
+    });
+  }
+  return Promise.resolve();
+};
+
+window.queueFirebaseSave = function() {
+  clearTimeout(window._playbackFirebaseSaveTimer);
+  window._playbackFirebaseSaveTimer = setTimeout(function(){
+    try { window.saveLocalData(); } catch(e) {}
+  }, 600);
+};
+
+// Load from Firebase first, fallback to localStorage
+window.loadAllDataFromFirebase = async function() {
+  try {
+    // Channels
+    var chSnap = await db.collection("startv").doc("channels").get();
+    if (chSnap.exists && chSnap.data().data) {
+      window.allData = chSnap.data().data || {};
+      try { localStorage.setItem('startv_local_channels', JSON.stringify(window.allData)); } catch(e) {}
+    } else {
+      var localChannels = localStorage.getItem('startv_local_channels');
+      window.allData = localChannels ? JSON.parse(localChannels) : {};
+    }
+
+    // Users
+    var userSnap = await db.collection("startv").doc("users").get();
+    if (userSnap.exists && userSnap.data().data) {
+      window.allUsers = userSnap.data().data || {};
+      try { localStorage.setItem('startv_local_users', JSON.stringify(window.allUsers)); } catch(e) {}
+    } else {
+      var localUsers = localStorage.getItem('startv_local_users');
+      window.allUsers = localUsers ? JSON.parse(localUsers) : {};
+    }
+
+    // Operators
+    var opSnap = await db.collection("startv").doc("operators").get();
+    if (opSnap.exists && opSnap.data().data) {
+      window.allOperators = opSnap.data().data || {};
+      try { localStorage.setItem('startv_local_operators', JSON.stringify(window.allOperators)); } catch(e) {}
+    } else {
+      var localOperators = localStorage.getItem('startv_local_operators');
+      window.allOperators = localOperators ? JSON.parse(localOperators) : {};
+    }
+
+    // Settings
+    var setSnap = await db.collection("startv").doc("settings").get();
+    if (setSnap.exists && setSnap.data().data) {
+      window.settings = Object.assign({}, window.settings || {}, setSnap.data().data);
+      try { localStorage.setItem('startv_local_settings', JSON.stringify(window.settings)); } catch(e) {}
+    } else {
+      var localSettings = localStorage.getItem('startv_local_settings');
+      if (localSettings) {
+        window.settings = Object.assign({}, window.settings || {}, JSON.parse(localSettings));
+      }
+    }
+
+    console.log("✓ Data loaded from Firebase");
+    return true;
+  } catch (e) {
+    console.warn("Firebase load failed, using localStorage:", e);
+    try {
+      var lc = localStorage.getItem('startv_local_channels');
+      var lu = localStorage.getItem('startv_local_users');
+      var lo = localStorage.getItem('startv_local_operators');
+      var ls = localStorage.getItem('startv_local_settings');
+      window.allData = lc ? JSON.parse(lc) : {};
+      window.allUsers = lu ? JSON.parse(lu) : {};
+      window.allOperators = lo ? JSON.parse(lo) : {};
+      if (ls) window.settings = Object.assign({}, window.settings || {}, JSON.parse(ls));
+    } catch(e2) {}
+    return false;
+  }
+};
+// ===============================================================
+
+
+        async function initApp() { 
+            // Load from Firebase first (with localStorage fallback)
+            try {
+                await window.loadAllDataFromFirebase();
+            } catch(e) {
+                console.warn("Firebase load error, falling back to local:", e);
+                try {
+                    var localChannels = localStorage.getItem('startv_local_channels');
+                    var localUsers = localStorage.getItem('startv_local_users');
+                    var localOperators = localStorage.getItem('startv_local_operators');
+                    var localSettings = localStorage.getItem('startv_local_settings');
+                    if (localChannels) {
+                        try { window.allData = JSON.parse(localChannels) || {}; } catch(e) { window.allData = {}; }
+                    } else {
+                        window.allData = {};
+                    }
+                    if (localUsers) window.allUsers = JSON.parse(localUsers);
+                    if (localOperators) window.allOperators = JSON.parse(localOperators);
+                    if (localSettings) {
+                        window.settings = Object.assign({}, window.settings, JSON.parse(localSettings));
+                    }
+                } catch(localErr) { console.warn('Local startup warning:', localErr); }
+            }
+
+            try {
+                var savedOpStamp = parseInt(localStorage.getItem('startv_local_operators_updated_at') || '0', 10) || 0;
+                window._operatorsUpdatedAt = savedOpStamp;
+            } catch(e) {}
+
+            try { window.homeSortMode = localStorage.getItem('startv_home_sort') || 'default'; } catch(e) {}
+            window.usersDataReady = true;
+            applySettings();
+            updateStats();
+            renderCategoriesUI();
+            renderFrontend(); window.updateLiveStatus && window.updateLiveStatus();
+            renderAdminList();
+            renderUserList();
+            renderRecentBar();
+            window.refreshAdminMetrics && window.refreshAdminMetrics();
+            window.restoreAllExtraFeaturesUI && window.restoreAllExtraFeaturesUI();
+
+            // Keep local backup in sync
             try {
                 localStorage.setItem('startv_local_channels', JSON.stringify(window.allData));
                 localStorage.setItem('startv_local_users', JSON.stringify(window.allUsers));
@@ -2925,38 +3163,7 @@ body.light-mode #fakeViewers{color:#64748b!important}
 
 
 
-        window.saveLocalData = function() {
-            var channelSnapshot = window.allData || {};
-            try {
-                localStorage.setItem('startv_local_channels', JSON.stringify(channelSnapshot));
-                localStorage.setItem('startv_local_users', JSON.stringify(window.allUsers || {}));
-                localStorage.setItem('startv_local_operators', JSON.stringify(window.allOperators || {}));
-                localStorage.setItem('startv_favorites', JSON.stringify(window.favorites || []));
-                localStorage.setItem('startv_recent', JSON.stringify(window.recentlyPlayed || []));
-            } catch(e) {
-                console.warn('Local save failed:', e);
-                try {
-                    // Quota fallback: strip heavy logos from a copy and retry channels only
-                    var light = {};
-                    Object.keys(channelSnapshot).forEach(function(k){
-                        var c = channelSnapshot[k] || {};
-                        light[k] = Object.assign({}, c);
-                        if (light[k].logo && String(light[k].logo).indexOf('data:')===0 && String(light[k].logo).length > 8000) {
-                            light[k].logo = '';
-                        }
-                    });
-                    localStorage.setItem('startv_local_channels', JSON.stringify(light));
-                    window.showToast && window.showToast('Storage almost full — large logos stripped');
-                } catch(e2) {
-                    window.showToast && window.showToast('Device storage full — export backup now');
-                }
-            }
-
-        };
-
-        // Lightweight persistence used while zapping channels. The old path wrote
-        // the entire channels/users/operators database on every channel switch,
-        // which could make mobile/Android TV channel changes feel laggy.
+        // Lightweight persistence used while zapping channels.
         window.savePlaybackStateFast = function() {
             try {
                 localStorage.setItem('startv_favorites', JSON.stringify(window.favorites || []));
@@ -2965,36 +3172,8 @@ body.light-mode #fakeViewers{color:#64748b!important}
             } catch(e) {}
         };
 
-        window.queueFirebaseSave = function() {
-            clearTimeout(window._playbackFirebaseSaveTimer);
-            window._playbackFirebaseSaveTimer = setTimeout(function(){
-                try { window.saveLocalData(); } catch(e) {}
-            }, 400);
-        };
+        // saveLocalData, saveSettings, saveOperators, queueFirebaseSave are defined earlier with Firebase support
 
-        window.saveOperators = function() {
-            var stamp = Date.now();
-            window._operatorsUpdatedAt = stamp;
-            Object.keys(window.allOperators || {}).forEach(function(id) {
-                if (window.allOperators[id] && typeof window.allOperators[id] === 'object') {
-                    window.allOperators[id].updatedAt = stamp;
-                }
-            });
-            try {
-                localStorage.setItem('startv_local_operators', JSON.stringify(window.allOperators));
-                localStorage.setItem('startv_local_operators_updated_at', String(stamp));
-            } catch(e) {}
-            return Promise.resolve();
-        };
-
-
-
-        window.saveSettings = function() { 
-            window.settings = window.settings || {};
-            window.settings._updated_at = Date.now();
-            try { localStorage.setItem('startv_local_settings', JSON.stringify(window.settings)); } catch(e) {}
-            return Promise.resolve();
-        };
 
 
 
